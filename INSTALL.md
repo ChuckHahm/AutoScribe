@@ -19,7 +19,7 @@ download packages and Tesseract during setup. After that it runs offline and bin
 Windows notes:
 - Windows 10/11 with `winget` (App Installer) is assumed. Installing Tesseract shows an administrator prompt.
 - Tesseract is not added to PATH by its installer; `setup.py` and `run.py` find it in `C:\Program Files\Tesseract-OCR`.
-- Status: reviewed against the Windows code paths but **not yet run on a Windows machine** (see "Windows verification" below).
+- Status: tested on a clean Windows 10 Enterprise VM (no winget, no Python) on 2026-11-09. `start.bat` installs Python 3.11 from python.org and Tesseract 5.4 and starts the server. See "Known issue: OCR differs by Tesseract version" below.
 
 ## macOS
     brew install python@3.11            # if Python 3.11+ is not installed
@@ -36,7 +36,7 @@ On other distros, install Tesseract with your package manager first, then run `s
 ## What setup.py does
 1. Creates `.venv` and installs `requirements.txt`.
 2. Finds Tesseract, or installs it (winget on Windows, brew on macOS, apt on Linux).
-3. Self-check: prints the Tesseract version, detected monitors, and OCRs a synthetic page (expect `23 / 23` fields).
+3. Self-check: prints the Tesseract version, detected monitors, and OCRs a synthetic page (a synthetic page: 23 / 23 fields with Tesseract 4.1, 19 / 23 with Tesseract 5.4, see Known issue below).
 
 It is safe to re-run. If Tesseract is installed somewhere unusual, set `TESSERACT_CMD` to the full path of the executable.
 
@@ -86,5 +86,11 @@ On a clean Windows machine, from a Command Prompt in the project folder:
     .venv\Scripts\python -m pytest -q
     .venv\Scripts\python tools\keystroke_helper.py      (dry run; prints the plan)
 
-Expect: the self-check prints `OCR read 23 / 23 fields`, 14 tests pass, and the browser opens with
+Expect: the self-check prints `OCR read N / 23 fields`, at least 13 of 14 tests pass (see Known issue), and the browser opens with
 `build <date>` in the page header. Record the result (Windows version, Python version) in your test log.
+
+## Known issue: OCR differs by Tesseract version
+The extractor was tuned on Tesseract 4.1.1 (Linux/Docker). With Tesseract 5.4 on Windows, the same clean synthetic page reads
+19 / 23 fields and `test_clean_mm_and_cm_roundtrip` fails (different GA and percentile fields each run). Flags still work, but
+real-photo accuracy on Windows has **not** been measured. Until the extractor is re-tuned for Tesseract 5, treat Windows
+results as unverified and compare against `qa` accuracy numbers from a Tesseract 4.1 run.

@@ -30,10 +30,31 @@ def tesseract_path():
             return c
 
 
+TESS_URL = "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe"
+
+
+def install_tesseract_windows_download():
+    """No winget (e.g. Windows 10 Enterprise): download the UB Mannheim installer and run it silently. Needs admin (UAC prompt).
+
+    Downloads with PowerShell, not urllib: on a fresh Windows, Python's urllib fails with CERTIFICATE_VERIFY_FAILED until Windows
+    has fetched the root certificate, which PowerShell (Schannel) does automatically.
+    """
+    import tempfile
+
+    exe = Path(tempfile.gettempdir()) / "tesseract-setup.exe"
+    print("  downloading", TESS_URL)
+    ps = ("[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; "
+          f"Invoke-WebRequest '{TESS_URL}' -OutFile '{exe}' -UseBasicParsing")
+    run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps], check=True)
+    run([str(exe), "/S"], check=True)
+
+
 def install_tesseract():
     if WIN and shutil.which("winget"):
         run(["winget", "install", "-e", "--id", "UB-Mannheim.TesseractOCR", "--silent",
              "--accept-package-agreements", "--accept-source-agreements"])
+    elif WIN:
+        install_tesseract_windows_download()
     elif platform.system() == "Darwin" and shutil.which("brew"):
         run(["brew", "install", "tesseract"])
     elif shutil.which("apt-get"):
