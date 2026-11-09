@@ -26,7 +26,18 @@ jobs:
         run: python setup.py
 
       - name: Tests
-        run: .venv\Scripts\python -m pytest -q
+        shell: bash
+        run: |
+          set +e
+          .venv/Scripts/python -m pytest -q --tb=short > pytest.out 2>&1
+          code=$?
+          cat pytest.out
+          if [ $code -ne 0 ]; then
+            # surface the failure text as an annotation (job logs need a login to download)
+            msg=$(tail -c 3000 pytest.out | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\r//g;s/\n/%0A/g')
+            echo "::error title=pytest failed::$msg"
+          fi
+          exit $code
 
       - name: Smoke test (start the server, load the pages)
         run: .venv\Scripts\python tools\smoke_test.py
