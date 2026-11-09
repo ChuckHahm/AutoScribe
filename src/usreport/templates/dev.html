@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>US Report Assistant · Developer</title><link rel="stylesheet" href="/static/app.css"></head><body>
+<header><h1>US Report Assistant</h1><span class="sub">Developer interface · synthetic data, benchmarks, diagnostics</span>
+<span class="sub" id="build" title="Software build date">build __BUILD__</span><nav><a href="/">Report</a><a class="on" href="/dev">Developer</a></nav></header>
+<div style="padding:16px 16px 0"><div class="tabs">
+ <button class="on" data-t="run" onclick="tab('run')">Run</button><button data-t="bench" onclick="tab('bench')">Benchmark</button>
+ <button data-t="plan" onclick="tab('plan')">Plan &amp; metrics</button><button data-t="logs" onclick="tab('logs')">Logs</button><button data-t="sys" onclick="tab('sys')">System</button></div></div>
+
+<main id="t-run">
+<section class="card"><h2>Input</h2><div class="bar">
+ <button onclick="synth('mm',false)">Synthetic mm</button><button onclick="synth('cm',false)">Synthetic cm</button>
+ <button onclick="synth('mm',true)">Synthetic photo</button>
+ <label class="btn">Upload image<input type="file" accept="image/*" hidden onchange="upload(this)"></label></div>
+ <div class="bar"><select id="mon"></select><button class="primary" onclick="snap()">Capture screen (3 s)</button><span id="status"></span></div>
+ <img id="img" alt="" hidden>
+ <h2 style="margin-top:12px">Raw extraction result</h2><pre id="raw">–</pre></section>
+<section class="card"><h2>Review</h2><div id="summary" class="msg" style="margin-bottom:8px"></div>
+ <table id="grid"><thead><tr><th></th><th>Epic field</th><th>Value</th><th>Check</th></tr></thead><tbody></tbody></table>
+ <div class="bar" style="margin-top:12px"><button class="primary" id="ok" onclick="approve()" disabled>Approve</button>
+  <button onclick="transcribe({dry_run:true,countdown:0})">Transcribe (dry run)</button>
+  <button onclick="transcribe({countdown:5})">Transcribe live</button><button id="abort" onclick="abortT()" hidden>Stop</button>
+  <a href="/epicsim" target="epicsim">Open Epic simulator</a></div><div id="tstat" class="msg"></div><pre id="plan" hidden></pre></section>
+</main>
+
+<main id="t-bench" hidden style="grid-template-columns:1fr">
+<section class="card"><h2>Synthetic benchmark</h2><div class="bar">
+ n <input class="n" id="bn" type="number" value="20" min="1" max="100"> unit <select id="bu"><option>mm</option><option>cm</option></select>
+ <label><input type="checkbox" id="bp" checked> photo</label> severity <input class="n" id="bs" type="number" value="1" step="0.1" min="0" max="1">
+ <button class="primary" onclick="bench()">Run</button><span class="msg">100 reports ≈ a few minutes</span></div>
+ <div id="bres" style="overflow-x:auto"></div></section></main>
+
+<main id="t-plan" hidden>
+<section class="card"><h2>Latest approved plan</h2><pre id="lp">–</pre><button onclick="loadPlan()">Refresh</button></section>
+<section class="card"><h2>Correction metrics (PHI-free)</h2><div id="met" class="msg">–</div></section></main>
+
+<main id="t-logs" hidden style="grid-template-columns:1fr"><section class="card"><h2>Log history (newest first)</h2>
+ <div class="bar"><select id="lv" onchange="loadLogs()"><option value="DEBUG">All (debug)</option><option value="INFO" selected>Info+</option><option value="WARNING">Warnings+</option><option value="ERROR">Errors</option></select>
+  <select id="ln" onchange="loadLogs()"><option>50</option><option selected>100</option><option>300</option></select>
+  <label><input type="checkbox" id="auto" checked> auto-refresh</label><button onclick="loadLogs()">Refresh</button><span class="msg" id="lcount"></span></div>
+ <div style="overflow-x:auto"><table id="lt"></table></div><div class="msg">No field values or image content are ever logged. File: <span id="lfile">data/logs/usreport.jsonl</span></div></section></main>
+
+<main id="t-sys" hidden style="grid-template-columns:1fr"><section class="card"><h2>System</h2><table id="sys"></table></section></main>
+
+<script src="/static/ui.js"></script>
+<script>
+const tabs = ['run', 'bench', 'plan', 'logs', 'sys'];
+function tab(t) {
+  tabs.forEach(x => { $('t-' + x).hidden = x != t; document.querySelector(`[data-t=${x}]`).classList.toggle('on', x == t) });
+  if (t == 'plan') loadPlan(); if (t == 'sys') loadSys(); if (t == 'logs') loadLogs();
+}
+const show = r => { renderGrid(r); const {slots, ...rest} = r; $('raw').textContent = JSON.stringify(rest, null, 1) };
+const synth = (u, p) => post(`/api/synthetic?unit=${u}&photo=${p}`).then(show);
+const snap = () => post(`/api/capture?delay=3&monitor=${$('mon').value || 1}`, 'Switch to the GE page… capturing in 3 s').then(show);
+function upload(el) { const f = new FormData(); f.append('file', el.files[0]); call('/api/extract', { method: 'POST', body: f }).then(show); el.value = '' }
+
+async function bench() {
+  const q = `n=${$('bn').value}&unit=${$('bu').value}&photo=${$('bp').checked}&severity=${$('bs').value}`;
+  const r = await call('/api/benchmark?' + q, null, 'benchmarking…');
+  const slots = Object.entries(r.per_slot);
+  $('bres').innerHTML = `<p>field accuracy <b>${(r.field_accuracy * 100).toFixed(1)}%</b> · fully correct <b>${r.reports_fully_correct}</b> ·
+    wrong &amp; flagged <b>${r.wrong_and_flagged}</b> · wrong &amp; <b style="color:var(--err)">SILENT ${r.wrong_and_silent}</b></p>
+    <table><tr>${slots.map(([k]) => `<th class="num">${k}</th>`).join('')}</tr><tr>${slots.map(([, v]) => `<td class="num" style="${v < 0.9 ? 'color:var(--err)' : ''}">${v}</td>`).join('')}</tr></table>`;
+}
+async function loadPlan() {
+  try { const p = await (await fetch('/api/plan')).json(); $('lp').textContent = p.error ? 'nothing approved yet' : JSON.stringify(p, null, 1) } catch (e) { $('lp').textContent = String(e) }
+  const m = await call('/api/metrics');
+  $('met').innerHTML = m.reports ? `${m.reports} approved report(s); ${m.reports_clean} needed no corrections.<table><tr><th>slot</th><th class="num">corrected</th></tr>` +
+    Object.entries(m.corrected_by_slot).map(([k, v]) => `<tr><td>${k}</td><td class="num">${v}</td></tr>`).join('') + '</table>' : 'No approvals yet.';
+}
+const esc = x => String(x).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+async function loadLogs() {
+  const r = await (await fetch(`/api/logs?n=${$('ln').value}&level=${$('lv').value}`)).json();
+  const col = { ERROR: 'var(--err)', WARNING: 'var(--warn)', INFO: 'var(--ink)', DEBUG: 'var(--dim)' };
+  $('lt').innerHTML = '<tr><th>Time</th><th>Level</th><th>Source</th><th>Message</th></tr>' + r.logs.map(l =>
+    `<tr style="color:${col[l.level]}"><td style="white-space:nowrap">${l.t}</td><td>${l.level}</td><td>${esc(l.src)}</td><td>${esc(l.msg)}${l.exc ? `<details><summary>traceback</summary><pre>${esc(l.exc)}</pre></details>` : ''}</td></tr>`).join('');
+  $('lcount').textContent = `${r.logs.length} shown`;
+}
+setInterval(() => { if (!$('t-logs').hidden && $('auto').checked) loadLogs() }, 3000);
+async function loadSys() {
+  const s = await call('/api/system');
+  const pill = (ok, t) => `<span class="pill ${ok ? 'ok' : 'bad'}">${t}</span>`;
+  const rows = [['Tesseract', pill(!!s.tesseract.version, s.tesseract.version || 'not found') + ' ' + s.tesseract.cmd],
+    ['Monitors', s.monitors.map(m => `${m[0]}: ${m[1]}×${m[2]}`).join(' · ') || pill(false, 'none')],
+    ['Platform', s.platform], ['Python', s.python], ['Data dir', s.data_dir], ['Advance key', s.advance_key],
+    ['Bound to', s.bind + ' (loopback only)'], ['Developer UI', s.dev_ui ? 'on' : 'off']];
+  $('sys').innerHTML = rows.map(([k, v]) => `<tr><td class="l" style="width:140px">${k}</td><td>${v}</td></tr>`).join('');
+}
+call('/api/system').then(s => { $('mon').innerHTML = s.monitors.map(m => `<option value="${m[0]}">Monitor ${m[0]} (${m[1]}×${m[2]})</option>`).join('') }).catch(() => {});
+</script></body></html>

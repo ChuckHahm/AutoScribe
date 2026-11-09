@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Simulated Epic result template</title><link rel="stylesheet" href="/static/app.css">
+<style>.f{display:grid;grid-template-columns:34px 1fr 120px;gap:6px 10px;align-items:center;max-width:520px}.f b{color:var(--dim)}.f input{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}</style></head><body>
+<header><h1>Simulated Epic result template</h1><span class="sub">Test target for Transcribe: click field A, then press Transcribe on the Report page</span></header>
+<div style="padding:16px"><div class="card" style="max-width:600px"><div class="f" id="f"></div>
+<div class="bar" style="margin-top:12px"><button onclick="document.querySelectorAll('#f input').forEach(i=>i.value='')">Clear</button></div></div></div>
+<script>const slots = __SLOTS__;
+document.getElementById('f').innerHTML = slots.map(s => `<b>${s.letter}</b><span>${s.label}</span><input data-l="${s.letter}" autocomplete="off">`).join('');
+document.querySelector('#f input').focus();</script></body></html>

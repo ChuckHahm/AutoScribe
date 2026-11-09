@@ -1,0 +1,13 @@
+data/
+images/
+*.mp3
+__pycache__/
+.pytest_cache/
+.venv/
+.gstack/
+
+# Private: client, commercial and meeting material; not for the public repo
+bizdev/
+qa/
+doc/Conversations/
+.claude/

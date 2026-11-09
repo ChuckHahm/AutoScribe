@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"   # loopback only: never exposed to the network
+    volumes:
+      - ./src:/app/src          # live code editing during development
+      - ./tests:/app/tests
+      - ./tools:/app/tools
+      - ./data:/data
+    environment:
+      DATA_DIR: /data
+    command: uvicorn usreport.server:app --host 0.0.0.0 --port 8000 --reload
+    # Uncomment to guarantee no outbound network at runtime (PHI safety):
+    # network_mode: none   (then use `docker compose run` + published ports are unavailable)

@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Simulated ultrasound screen</title>
+<style>html,body{margin:0;height:100%;background:#0e1228;overflow:hidden}
+#s{width:100vw;height:100vh;object-fit:contain;display:block}
+#bar{position:fixed;left:8px;bottom:8px;display:flex;gap:6px;opacity:.35}#bar:hover{opacity:1}
+#bar button{font:13px system-ui;padding:4px 10px;border-radius:6px;border:1px solid #556;background:#223;color:#dde;cursor:pointer}</style></head><body>
+<img id="s" alt="Simulated GE ultrasound measurement page">
+<div id="bar"><button onclick="load('mm')">New mm</button><button onclick="load('cm')">New cm</button><button onclick="document.documentElement.requestFullscreen()">Fullscreen</button></div>
+<script>
+const q = new URLSearchParams(location.search);
+const load = u => { document.getElementById('s').src = `/api/sim_image?unit=${u}&_=${Date.now()}` };
+load(q.get('unit') || 'mm');
+</script></body></html>

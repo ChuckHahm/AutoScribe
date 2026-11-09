@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>US Report Assistant</title><link rel="stylesheet" href="/static/app.css"></head><body>
+<header><h1>US Report Assistant</h1><span class="sub">Local only · you review and approve every value · nothing leaves this machine</span>
+<span class="sub" id="build" title="Software build date">build __BUILD__</span><nav><a class="on" href="/">Report</a><a href="/dev" id="devlink" hidden>Developer</a></nav></header>
+<main>
+<section class="card"><h2>1. Capture</h2>
+ <div class="bar"><button class="primary big" onclick="snap()">Capture screen</button>
+  <select id="mon" hidden onchange="localStorage.mon=this.value"></select><span id="status"></span></div>
+ <div class="msg" style="margin-bottom:10px">Click, then bring the GE measurement page to the front. The screen is captured after 3 seconds.</div>
+ <div class="bar" id="simbar" hidden><button onclick="openSim()">Open simulated ultrasound screen</button>
+  <span class="msg">Demo/test: opens a window showing a synthetic GE page. Opens full-size (on your second monitor if you have one); pick that monitor in the dropdown, then Capture.</span></div>
+ <img id="img" alt="Captured screen" hidden></section>
+<section class="card"><h2>2. Review</h2><div id="summary" class="msg" style="margin-bottom:8px">Nothing captured yet.</div>
+ <table id="grid"><thead><tr><th></th><th>Epic field</th><th>Value</th><th>Check</th></tr></thead><tbody></tbody></table>
+ <div class="bar" style="margin-top:12px"><button class="primary big" id="ok" onclick="transcribe()" disabled>3. Transcribe to Epic</button>
+  <button id="abort" onclick="abortT()" hidden>Stop</button></div>
+ <div id="tstat" class="msg" style="font-size:14px"></div>
+ <div class="msg" style="margin-top:6px">After you click, click the first field in the Epic template. The values are typed in; you review them in Epic before signing.</div>
+ <pre id="plan" hidden></pre></section>
+</main>
+<script src="/static/ui.js"></script>
+<script>
+let sim = null;
+const openSim = () => {  // full-size so the text stays as legible as a real screenshot; on the other monitor if there is one
+  const left = screen.isExtended && window.screenX < screen.width ? screen.width : 0;
+  sim = window.open('/sim', 'usSim', `popup,left=${left},top=0,width=${screen.availWidth},height=${screen.availHeight}`);
+};
+function snap() {
+  if (sim && !sim.closed) sim.focus();   // bring the simulated screen forward; real use: user shows the GE page
+  post(`/api/capture?delay=3&monitor=${$('mon').value || 1}`, 'Switch to the GE page… capturing in 3 s').then(renderGrid);
+}
+call('/api/system').then(s => {
+  if (s.dev_ui) { $('devlink').hidden = false; $('simbar').hidden = false }
+  if (s.monitors.length > 1) {
+    $('mon').innerHTML = s.monitors.map(m => `<option value="${m[0]}">Monitor ${m[0]} (${m[1]}×${m[2]})</option>`).join('');
+    try { if (localStorage.mon) $('mon').value = localStorage.mon } catch {}
+    $('mon').hidden = false;
+  }
+}).catch(() => {});
+</script></body></html>
