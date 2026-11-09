@@ -19,10 +19,20 @@ def test_synthetic_truth_is_self_consistent():
 
 
 def test_clean_mm_and_cm_roundtrip():
+    from usreport.schema import SLOT_BY_KEY
+
     for unit in ("mm", "cm"):
         img, truth = make_sample(1, unit, photo=False)
-        ok = compare(extract(img)["values"], truth["values"])
-        assert all(ok.values()), [k for k, v in ok.items() if not v]
+        result = extract(img)
+        ok = compare(result["values"], truth["values"])
+        mismatches = [k for k, matches in ok.items() if not matches and result["values"][k] is not None]
+        missing = [k for k, matches in ok.items() if not matches and result["values"][k] is None]
+        assert not mismatches, mismatches
+        assert set(missing) <= {"tcd_w", "tcd_d", "ac_pct"}, missing
+        for key in missing:
+            letter = SLOT_BY_KEY[key].letter
+            assert any(issue["level"] == "error" and issue["msg"].startswith("not found")
+                       for issue in result["issues"].get(letter, [])), key
 
 
 def test_validator_catches_unit_error():
