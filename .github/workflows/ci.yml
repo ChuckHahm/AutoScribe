@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  windows:
+    name: Windows install, tests, smoke test
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # setup.py installs Tesseract with winget on a user's PC. winget is unreliable on CI runners,
+      # so install it with Chocolatey here; setup.py then finds it in Program Files and skips its own install.
+      - name: Install Tesseract
+        run: choco install tesseract --no-progress -y
+
+      - name: setup.py (venv, packages, Tesseract check, self-check)
+        run: python setup.py
+
+      - name: Tests
+        run: .venv\Scripts\python -m pytest -q
+
+      - name: Smoke test (start the server, load the pages)
+        run: .venv\Scripts\python tools\smoke_test.py
+
+  linux:
+    name: Linux tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Tesseract
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr fonts-dejavu-core
+
+      - name: Install packages
+        run: pip install -r requirements.txt
+
+      - name: Tests
+        run: python -m pytest -q
+
+      - name: Smoke test
+        run: python tools/smoke_test.py
