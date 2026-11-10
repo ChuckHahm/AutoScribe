@@ -65,3 +65,27 @@ jobs:
 
       - name: Smoke test
         run: python tools/smoke_test.py
+
+  macos:
+    name: macOS tests
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Tesseract
+        run: brew install tesseract
+
+      - name: Install packages
+        run: pip install -r requirements.txt
+
+      - name: Tests
+        run: python -m pytest -q
+
+      - name: Smoke test
+        run: python tools/smoke_test.py
