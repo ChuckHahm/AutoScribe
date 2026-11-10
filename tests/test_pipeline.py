@@ -25,6 +25,13 @@ def test_clean_mm_and_cm_roundtrip():
         assert all(ok.values()), [k for k, v in ok.items() if not v]
 
 
+def test_synthetic_font_is_platform_independent():
+    from PIL import ImageFont
+    from usreport import synth
+
+    assert synth._font(17).getname() == ImageFont.load_default(size=17).getname()
+
+
 def test_validator_catches_unit_error():
     _, truth = make_sample(3)
     issues = validate(dict(truth["values"], bpd_mm=4.5))  # cm typed into an mm field
