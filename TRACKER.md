@@ -1,11 +1,11 @@
 # Project tracker: dev / QA / bizdev in parallel
 
-Updated: 2026-11-01. One row per milestone; each track has its own detail files.
+Updated: 2026-11-17. One row per milestone; each track has its own detail files.
 
 | # | Milestone | Dev | QA | Bizdev | Gate to next |
 |---|-----------|-----|----|--------|--------------|
 | 0 | Scope + workflow understood | Plan, schema, synthetic data (done) | - | Oct 19 scoping (done); Oct 21 walkthrough (needs transcript); Oct 23 look-alike research plan drafted (L0 desk research not started) | Workflow confirmed with the reviewer |
-| 1 | OCR works on real photos | OCR v4 (Oct 25): flagged fields down ~85%, synthetic accuracy 93-99.6%, silent errors 0 (1 at sev 1.0 mm); first real photo 19/23 read, all correct; need more photos | First entries in `qa/test-log.md` | Answer: screenshots possible? advance key? | Wrong-and-silent fields ~0 |
+| 1 | OCR works on real photos | OCR v4 (Oct 25): flagged fields down ~85%, synthetic accuracy 93-99.6%, silent errors 0 (1 at sev 1.0 mm); first real photo 19/23 read, all correct; need more photos. Nov 16 bake-off (synthetic, n=20): rapidocr 100 / 100 / 98.9% (clean mm / clean cm / photo mm sev 0.6) vs tess v4 97.6 / 94.3 / 98.3%, silent 0 for all; rapidocr false alarms 0 / 0 / 1 vs 11 / 2 / 15. Not yet adopted; failure capture (`USREPORT_CAPTURE_FAILURES=1`) added | First entries in `qa/test-log.md` | Answer: screenshots possible? advance key? | Wrong-and-silent fields ~0 |
 | 2 | Reviewer pilot (real cases, supervised) | Keystroke helper live; polish UI | Clinical checklist per case; log every correction | Agree pilot terms; HIPAA posture documented | the reviewer: net time saved, trusts flags |
 | 3 | Daily use before January (the reviewer's 3-day job starts) | Stabilize, packaging for the reviewer's Mac | Regression set from real corrections | Commercial terms decided | Stable for 2+ weeks |
 | 4 | Productize (if warranted) | More scan types, installer | Per-scan-type accuracy | Market validation, client license, equity terms | Go/no-go on product |
@@ -21,6 +21,7 @@ Updated: 2026-11-01. One row per milestone; each track has its own detail files.
 3. Anything blocking another track goes in "Blockers" below.
 
 ## Blockers
+- Decide OCR engine: adopt rapidocr (alone or cross-checked with Tesseract, silent 0 in the bake-off). Synthetic pages use DejaVu, not the GE font, so re-run `tools/bakeoff.py` on real photos/failures before deciding. Owner: Chuck.
 - (cleared) Docker now works; use `sg docker -c "..."` until you re-login and restart Claude Code.
 - Need more real photos (different days/units) to measure real accuracy. Owner: reviewer.
 - Oct 21 recording not transcribed. Owner: Chuck.
