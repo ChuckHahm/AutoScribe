@@ -3,7 +3,7 @@
 Guidance for Claude Code in this project.
 
 ## What this is
-A local, offline ultrasound report assistant. It OCRs a GE MFM anatomy-scan measurement page (phone photo or screenshot), extracts the 23 Epic fields (slots A-W), flags suspicious values, and after the reviewer approves, types the values into Epic with a keystroke helper. Scope v1 is one scan type (MFM anatomy). Current status: `TRACKER.md`.
+A local, offline ultrasound report assistant. It OCRs a GE MFM anatomy-scan measurement page (runtime input is a screen capture of the on-screen text, not a phone photo; photos were only the first-iteration stand-in and still feed synthetic degradation tests), extracts the 23 Epic fields (slots A-W), flags suspicious values, and after the reviewer approves, types the values into Epic with a keystroke helper. Scope v1 is one scan type (MFM anatomy). Current status: `TRACKER.md`.
 
 ## Hard rules
 - **No PHI in the repo, logs, or any cloud tool.** Use synthetic data (`images/synthetic/`, `usreport.synth`) for examples and tests. `data/` and `images/` are gitignored and may hold PHI. Never print, summarize or upload real image contents or field values from them without being asked.

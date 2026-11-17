@@ -21,6 +21,7 @@ Updated: 2026-11-17. One row per milestone; each track has its own detail files.
 3. Anything blocking another track goes in "Blockers" below.
 
 ## Blockers
+- Note (2026-11-17): the runtime version reads screen captures of the on-screen character strings, not phone photos. Photo-severity benchmarks are a stress test only; weight accuracy work toward clean screen captures (scaling/resolution, e.g. maximized window helps per the Nov 16 call).
 - Decide OCR engine: adopt rapidocr (alone or cross-checked with Tesseract, silent 0 in the bake-off). Synthetic pages use DejaVu, not the GE font, so re-run `tools/bakeoff.py` on real photos/failures before deciding. Owner: Chuck.
 - (cleared) Docker now works; use `sg docker -c "..."` until you re-login and restart Claude Code.
 - Need more real photos (different days/units) to measure real accuracy. Owner: reviewer.
