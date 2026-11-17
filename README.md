@@ -19,15 +19,15 @@ every value, types them into the EHR template with a native keystroke helper.
 5. **Transcribe**: the approved values are typed into the EHR in field order (A-W). The reviewer then checks the result before signing.
 
 ## Privacy by design
-- **Nothing leaves the machine.** OCR is offline, the UI binds to `127.0.0.1`, and uploaded photos are held in memory only.
+- **Nothing leaves the machine.** OCR is offline, the UI binds to `127.0.0.1`, and uploaded photos are held in memory only (unless you opt in to saving misread pages for analysis; see INSTALL.md).
 - Logs hold slot letters, counts and timings only, never field values or image content.
 - `data/` and `images/` are gitignored. Never commit real patient data. Use the built-in synthetic pages for examples and tests.
 
 ## Quick start
 Needs Python 3.11+ and Tesseract. Internet is required once, for setup.
 
-    python setup.py          # venv, packages, Tesseract, self-check
-    python run.py            # http://127.0.0.1:8000
+    python3.11 setup.py          # venv, packages, Tesseract, self-check (any Python 3.11+)
+    .venv/bin/python run.py      # http://127.0.0.1:8000  (use the venv's Python, not the system one)
 
 On Windows, double-click `start.bat` (it runs setup on first launch). Full instructions for Windows, macOS, Linux and Docker are in
 [INSTALL.md](INSTALL.md).

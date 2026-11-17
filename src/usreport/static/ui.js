@@ -38,7 +38,7 @@ function renderGrid(r) {
 async function approve() {
   const values = {};
   document.querySelectorAll('input.v').forEach(i => values[i.dataset.k] = i.value === '' ? null : Number(i.value));
-  const r = await call('/api/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values, original: cur.values }) });
+  const r = await call('/api/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values, original: cur.values, id: cur.id }) });
   $('plan').hidden = false;
   $('plan').textContent = `Approved. ${r.corrected.length} field(s) corrected by you: ${r.corrected.join(', ') || 'none'}\nRun type_into_epic.bat (or tools/keystroke_helper.py) to type these into Epic.\n\n` +
     r.plan.map(p => p.slot + ': ' + (p.skip ? '(skip)' : p.text)).join('\n');
@@ -56,7 +56,7 @@ async function transcribe(opts = {}) {
   const stat = t => { $('tstat').textContent = t };
   try {
     await call('/api/transcribe', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values, original: cur.values, flagged, countdown: opts.countdown ?? 5, dry_run: !!opts.dry_run }) });
+      body: JSON.stringify({ values, original: cur.values, id: cur.id, flagged, countdown: opts.countdown ?? 5, dry_run: !!opts.dry_run }) });
     for (;;) {
       const j = await (await fetch('/api/transcribe/status')).json();
       stat(j.message);

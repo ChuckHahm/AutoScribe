@@ -130,6 +130,11 @@ def ocr_lines(img, psm):
              conf=float(d["conf"][i]))
         for i in range(len(d["text"])) if d["text"][i].strip() and float(d["conf"][i]) >= 0
     ]
+    return group_words(words)
+
+
+def group_words(words):
+    """Words (dicts with t, x, w, cy, h, conf, any OCR engine) -> text lines in the shape `parse` expects."""
     if not words:
         return []
     tol = 0.6 * statistics.median(w["h"] for w in words)
@@ -152,6 +157,8 @@ def read_aua(pre, lines):
     """GA(AUA) sits in a bordered box that confuses Tesseract. Crop right of its label,
     erase the box lines, and read just that field."""
     arr = np.asarray(pre)
+    if not any(l["words"] for l in lines):
+        return None  # nothing was read on the page at all
     med_h = statistics.median(w["h"] for l in lines for w in l["words"])
     for line in lines:
         for i, w in enumerate(line["words"]):
@@ -235,23 +242,19 @@ def _score(values, issues):
     return sum(v is not None for v in values.values()) - 2 * errs - warns
 
 
-def extract(img: Image.Image):
-    """Return {values, repeats, issues, low_conf, psm, lines}.
+def _run(lines, psm, pre=None):
+    """Parse one OCR pass. `pre` (the binarized page) enables the GA(AUA) box fallback when given."""
+    values, repeats, conf, notes = parse(lines)
+    if pre is not None and values["us_w"] is None:
+        aua = read_aua(pre, lines)
+        if aua:
+            values["us_w"], values["us_d"] = aua
+    return (_score(values, validate(values, repeats)), psm, values, repeats, conf, lines, notes)
 
-    Runs two Tesseract modes, takes the best-validating one, then fills fields it missed
-    from the other. Everything is re-validated afterwards.
-    """
-    pre = preprocess(img)
-    runs = []
-    for psm in (6, 11):
-        lines = ocr_lines(pre, psm)
-        values, repeats, conf, notes = parse(lines)
-        if values["us_w"] is None:
-            aua = read_aua(pre, lines)
-            if aua:
-                values["us_w"], values["us_d"] = aua
-        runs.append((_score(values, validate(values, repeats)), psm, values, repeats, conf, lines, notes))
-    runs.sort(key=lambda r: -r[0])
+
+def finish(runs):
+    """Pick the best-validating pass, fill gaps from the others, flag disagreements, re-validate."""
+    runs = sorted(runs, key=lambda r: -r[0])
     _, psm, values, repeats, conf, lines, notes = runs[0]
     values, repeats, conf, notes = dict(values), dict(repeats), dict(conf), dict(notes)
     for _, _, v2, r2, c2, _, _ in runs[1:]:
@@ -273,6 +276,22 @@ def extract(img: Image.Image):
                   if s.key.startswith(m + "_") and conf.get(m, 100) < LOW_CONF})
     return dict(values=values, repeats=repeats, issues=issues, low_conf=low, conf=conf, psm=psm,
                 lines=[l["text"] for l in lines])
+
+
+def extract(img: Image.Image):
+    """Return {values, repeats, issues, low_conf, psm, lines}.
+
+    Runs two Tesseract modes, takes the best-validating one, then fills fields it missed
+    from the other. Everything is re-validated afterwards.
+    """
+    pre = preprocess(img)
+    return finish([_run(ocr_lines(pre, psm), psm, pre) for psm in (6, 11)])
+
+
+def extract_lines(passes, pre=None):
+    """Same result shape as `extract`, from already-OCR'd lines (one list of lines per pass).
+    Lets another OCR engine reuse this module's parser and validator (see tools/bakeoff.py)."""
+    return finish([_run(lines, i, pre) for i, lines in enumerate(passes)])
 
 
 def compare(values, truth):

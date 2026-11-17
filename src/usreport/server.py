@@ -2,6 +2,8 @@
 
 PHI handling: uploaded photos live in memory only (small LRU) and are never
 written to disk. Only synthetic samples and PHI-free metrics are persisted.
+Exception, opt-in: with USREPORT_CAPTURE_FAILURES=1, a page the reviewer had to correct is saved under
+data/failures/ (see failures.py) so the misreads can be analysed. Off by default.
 """
 import io
 import json
@@ -21,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 import pytesseract
 from PIL import Image
 
-from . import capture, epic, logs, version
+from . import capture, epic, failures, logs, version
 from .extract import compare, extract
 from .schema import SLOTS
 from .synth import make_sample
@@ -51,6 +53,8 @@ async def _lifespan(_):
 app = FastAPI(title="US report assistant", lifespan=_lifespan)
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 IMAGES: "OrderedDict[str, bytes]" = OrderedDict()  # id -> JPEG bytes, memory only
+RESULTS: "OrderedDict[str, tuple]" = OrderedDict()  # id -> (PIL image, extract result), memory only, for failure capture
+CAPTURE_FAILURES = os.environ.get("USREPORT_CAPTURE_FAILURES", "0") == "1"  # opt-in: saves misread pages to data/failures
 LATEST_PLAN: dict = {}
 ADVANCE_KEY = os.environ.get("ADVANCE_KEY", "tab")  # key between Epic fields; verify with the reviewer (tab vs F2)
 TYPING_MODE = os.environ.get("USREPORT_TYPING", "live")  # "dry": transcription logs what it would type, presses nothing
@@ -100,6 +104,10 @@ def _remember(img):
 def _result(sid, img, truth=None):
     t0 = time.time()
     r = extract(img)
+    if CAPTURE_FAILURES:
+        RESULTS[sid] = (img, r)
+        while len(RESULTS) > 5:
+            RESULTS.popitem(last=False)
     flagged = sorted(set(r["issues"]) | set(r["low_conf"]))
     log.info("extracted %dx%d image: %d/%d fields read, flagged %s (%d ms)", img.width, img.height,
              sum(v is not None for v in r["values"].values()), len(SLOTS), ",".join(flagged) or "none", (time.time() - t0) * 1000)
@@ -240,7 +248,7 @@ def benchmark(n: int = 20, photo: bool = True, unit: str = "mm", severity: float
                 wrong_and_silent=missed_wrong, per_slot={k: round(v / n, 2) for k, v in hits.items()})
 
 
-def _approve(values, original):
+def _approve(values, original, sid=None):
     """Record an approval: latest plan for the helper, plus PHI-free correction metrics."""
     plan = epic.build_plan(values)
     LATEST_PLAN.clear()
@@ -250,13 +258,22 @@ def _approve(values, original):
     with open(DATA / "metrics.jsonl", "a", encoding="utf-8") as f:
         f.write(json.dumps(dict(t=int(time.time()), corrected=corrected)) + "\n")
     log.info("approved: %d fields, reviewer corrected %s", sum(not p.get("skip") for p in plan), ",".join(corrected) or "none")
+    if CAPTURE_FAILURES and sid in RESULTS:
+        try:
+            img, result = RESULTS[sid]
+            folder = failures.save(DATA, img, result, values, sid=sid)
+            if folder:
+                case = json.loads((folder / "case.json").read_text(encoding="utf-8"))
+                log.info("failure case saved: wrong %s, silent (unflagged) %s", ",".join(case["wrong"]), ",".join(case["silent"]) or "none")
+        except Exception as e:  # never block approval because of capture
+            log.error("failure capture failed: %s", type(e).__name__)
     return plan, corrected
 
 
 @app.post("/api/approve")
 def approve(body: dict):
     """Reviewer approved (possibly edited) values -> keystroke plan for the native helper."""
-    plan, corrected = _approve(body.get("values", {}), body.get("original", {}))
+    plan, corrected = _approve(body.get("values", {}), body.get("original", {}), body.get("id"))
     return dict(ok=True, corrected=corrected, plan=plan)
 
 
@@ -282,7 +299,7 @@ def transcribe(body: dict):
     if JOB["status"] == "running":
         raise HTTPException(409, "a transcription is already running")
     values, original = body.get("values", {}), body.get("original", {})
-    plan, corrected = _approve(values, original)
+    plan, corrected = _approve(values, original, body.get("id"))
     if all(p.get("skip") for p in plan):
         log.warning("transcribe refused: no values to type")
         raise HTTPException(400, "no values to type")

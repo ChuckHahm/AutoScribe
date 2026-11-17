@@ -20,11 +20,14 @@ A local, offline ultrasound report assistant. It OCRs a GE MFM anatomy-scan meas
     python tools/bench_flags.py             # synthetic accuracy and flag counts; log results in qa/accuracy-trend.md
     python tools/bench_severity.py          # accuracy by photo severity
     python tools/run_on_photo.py <path>     # one real photo; output may reflect PHI, don't paste it
+    python tools/bakeoff.py -n 20 [--failures]   # compare OCR engines (tools/ocr_engines.py); log rows in qa/accuracy-trend.md
+    python tools/failure_report.py          # sort saved misreads by kind (counts only; --show-values prints PHI)
+    python tools/add_failure.py <img> G=147.83   # add a misread page by hand: correct value per wrong slot
     docker compose up --build               # dev in Docker (can't type into Epic from a container)
 
 Install details are in `INSTALL.md`.
 
-Env vars: `USREPORT_DEV=0` hides `/dev`, `USREPORT_TYPING=dry`, `ADVANCE_KEY` (default `tab`; unverified, may be F2), `TESSERACT_CMD`, `DATA_DIR`, `USREPORT_BIND`.
+Env vars: `USREPORT_CAPTURE_FAILURES=1` saves pages the reviewer corrected to `data/failures/` (PHI, off by default; see `failures.py`), `USREPORT_DEV=0` hides `/dev`, `USREPORT_TYPING=dry`, `ADVANCE_KEY` (default `tab`; unverified, may be F2), `TESSERACT_CMD`, `DATA_DIR`, `USREPORT_BIND`.
 
 ## Code map (`src/usreport/`)
 - `schema.py`: Epic slots A-W
@@ -32,6 +35,7 @@ Env vars: `USREPORT_DEV=0` hides `/dev`, `USREPORT_TYPING=dry`, `ADVANCE_KEY` (d
 - `validate.py`: range, unit, GA, EFW and repeat-average checks that produce flags
 - `hadlock.py`: formulas used to generate synthetic data and cross-check OCR
 - `synth.py`: synthetic GE-style pages and phone-photo degradation
+- `failures.py`: opt-in local store of misread pages for error analysis. `tools/ocr_engines.py`: other OCR engines for the bake-off, all feeding `extract.extract_lines`
 - `capture.py`: screen capture. `epic.py`: Epic typing plan. `logs.py`: rotating JSONL logs
 - `server.py`: FastAPI app with the review UI (`/`), dev UI (`/dev`), `/epicsim` and `/api/plan`
 - `tools/keystroke_helper.py`: native typing helper (dry run by default)
