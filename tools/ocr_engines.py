@@ -12,27 +12,8 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from usreport import extract as ex
-
-
-def split_words(text, x0, x1, cy, h, conf):
-    """One detected text line with a box -> word dicts, x positions spread by character offset."""
-    total, pos, out = max(len(text), 1), 0, []
-    for tok in text.split():
-        i = text.index(tok, pos)
-        pos = i + len(tok)
-        out.append(dict(t=tok, x=x0 + (x1 - x0) * i / total, w=(x1 - x0) * len(tok) / total, cy=cy, h=h, conf=conf))
-    return out
-
-
-def poly_words(items):
-    """items: (text, polygon points, confidence 0-1) -> word dicts."""
-    words = []
-    for text, pts, conf in items:
-        p = np.asarray(pts, dtype=float).reshape(-1, 2)
-        x0, y0, x1, y1 = p[:, 0].min(), p[:, 1].min(), p[:, 0].max(), p[:, 1].max()
-        words += split_words(str(text), x0, x1, (y0 + y1) / 2, y1 - y0, float(conf) * 100)
-    return words
+from usreport import crosscheck, extract as ex
+from usreport.crosscheck import poly_words, split_words  # noqa: F401  (shared with the app's cross-check)
 
 
 class Engine:
@@ -51,7 +32,7 @@ class TessCurrent(Engine):
     name, note = "tess_current", "what the app does today: upscale, blur, adaptive threshold, deskew"
 
     def run(self, img):
-        return ex.extract(img)
+        return ex.extract(img, crosscheck=False)  # Tesseract alone; cross-checks are measured as A+B rows
 
 
 class TessNoBlur(Engine):
@@ -103,35 +84,13 @@ class AppleVision(_Words):
 
 
 class RapidOCR(_Words):
-    name, note = "rapidocr", "PaddleOCR models on ONNX runtime (pip install rapidocr-onnxruntime)"
-    _eng = None
+    name, note = "rapidocr", "PaddleOCR models on ONNX runtime (pip install rapidocr-onnxruntime); the app's cross-check engine"
 
     def unavailable(self):
-        try:
-            self._load()
-        except ImportError:
-            return "pip install rapidocr-onnxruntime"
-
-    def _load(self):
-        if RapidOCR._eng is None:
-            try:
-                from rapidocr_onnxruntime import RapidOCR as R
-                RapidOCR._eng = ("v1", R())
-            except ImportError:
-                from rapidocr import RapidOCR as R
-                RapidOCR._eng = ("v3", R())
-        return RapidOCR._eng
+        return crosscheck.unavailable()
 
     def words(self, img):
-        ver, eng = self._load()
-        arr = np.asarray(img.convert("RGB"))[:, :, ::-1]  # BGR
-        if ver == "v1":
-            res, _ = eng(arr)
-            return poly_words([(t, box, float(s)) for box, t, s in (res or [])])
-        out = eng(arr)
-        if out.boxes is None:
-            return []
-        return poly_words(list(zip(out.txts, out.boxes, out.scores)))
+        return crosscheck.words(img)
 
 
 class PaddleOCR(_Words):

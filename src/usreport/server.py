@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 import pytesseract
 from PIL import Image
 
-from . import capture, epic, failures, logs, version
+from . import capture, crosscheck, epic, failures, logs, version
 from .extract import compare, extract
 from .schema import SLOTS
 from .synth import make_sample
@@ -69,6 +69,8 @@ def _startup():
         log.info("tesseract %s at %s", pytesseract.get_tesseract_version(), pytesseract.pytesseract.tesseract_cmd)
     except Exception as e:
         log.error("tesseract not usable: %s", e)
+    why = crosscheck.unavailable() if crosscheck.enabled() else "disabled by USREPORT_CROSSCHECK=0"
+    (log.warning if why else log.info)("OCR cross-check (RapidOCR): %s", why or "ready")
     try:
         log.info("monitors: %s", capture.monitors())
     except Exception as e:
@@ -109,8 +111,10 @@ def _result(sid, img, truth=None):
         while len(RESULTS) > 5:
             RESULTS.popitem(last=False)
     flagged = sorted(set(r["issues"]) | set(r["low_conf"]))
-    log.info("extracted %dx%d image: %d/%d fields read, flagged %s (%d ms)", img.width, img.height,
-             sum(v is not None for v in r["values"].values()), len(SLOTS), ",".join(flagged) or "none", (time.time() - t0) * 1000)
+    cc = r.get("crosscheck", {})
+    log.info("extracted %dx%d image: %d/%d fields read, flagged %s, cross-check %s (engines disagree on %s) (%d ms)", img.width, img.height,
+             sum(v is not None for v in r["values"].values()), len(SLOTS), ",".join(flagged) or "none",
+             cc.get("status", "off"), ",".join(cc.get("disagree", [])) or "none", (time.time() - t0) * 1000)
     out = dict(id=sid, slots=[s.__dict__ for s in SLOTS], **r)
     if truth:
         out["match"] = compare(r["values"], truth["values"])

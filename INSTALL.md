@@ -4,7 +4,7 @@ The ultrasound report assistant runs entirely on the local machine. Internet is 
 download packages and Tesseract during setup. After that it runs offline and binds to `127.0.0.1` only.
 
 ## Requirements
-- Python 3.11 or newer
+- Python 3.11 or 3.12. The second OCR engine used for the cross-check (RapidOCR) does not install on Python 3.13+ yet; on 3.13+ the app runs on Tesseract alone and the review screen says the cross-check did not run.
 - Tesseract OCR (installed for you by `setup.py` where possible)
 - About 500 MB of disk space for the virtual environment
 

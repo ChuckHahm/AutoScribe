@@ -32,7 +32,9 @@ function renderGrid(r) {
   const img = $('img'); img.src = '/api/image/' + r.id; img.hidden = false;
   $('ok').disabled = false; $('plan').hidden = true;
   const n = Object.keys(r.issues).length + r.low_conf.filter(l => !(l in r.issues)).length;
-  const sm = $('summary'); if (sm) sm.textContent = n ? `${n} field(s) need your attention (highlighted).` : 'All fields read cleanly. Still check against the image.';
+  const cc = r.crosscheck || { status: 'off' };
+  const noCheck = cc.status === 'ok' ? '' : ' The second-engine cross-check did NOT run, so check every value against the image.';
+  const sm = $('summary'); if (sm) sm.textContent = (n ? `${n} field(s) need your attention (highlighted).` : cc.status === 'ok' ? 'Both OCR engines agree on every field. Still check against the image.' : 'No field was flagged.') + noCheck;
 }
 
 async function approve() {

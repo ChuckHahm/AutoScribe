@@ -281,14 +281,23 @@ def finish(runs):
                 lines=[l["text"] for l in lines])
 
 
-def extract(img: Image.Image):
-    """Return {values, repeats, issues, low_conf, psm, lines}.
+def extract(img: Image.Image, crosscheck=None):
+    """Return {values, repeats, issues, low_conf, psm, lines, crosscheck}.
 
     Runs two Tesseract modes, takes the best-validating one, then fills fields it missed
-    from the other. Everything is re-validated afterwards.
+    from the other. Everything is re-validated afterwards. Then a second engine (RapidOCR) reads the
+    page and any field where the engines disagree is flagged (see crosscheck.py). `crosscheck=False`
+    skips that; None follows USREPORT_CROSSCHECK (on by default).
     """
     pre = preprocess(img)
-    return finish([_run(ocr_lines(pre, psm), psm, pre) for psm in (6, 11)])
+    result = finish([_run(ocr_lines(pre, psm), psm, pre) for psm in (6, 11)])
+    from . import crosscheck as cc
+    if crosscheck is None:
+        crosscheck = cc.enabled()
+    if not crosscheck:
+        result["crosscheck"] = dict(status="off", disagree=[])
+        return result
+    return cc.apply(result, img)
 
 
 def extract_lines(passes, pre=None):
