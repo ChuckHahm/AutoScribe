@@ -11,3 +11,6 @@ bizdev/
 qa/
 doc/Conversations/
 .claude/
+
+# manual install-and-test clone of the repo (try the installer before approving a build for user testing)
+testenv/
