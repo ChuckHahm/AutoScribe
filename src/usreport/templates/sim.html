@@ -2,7 +2,8 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Simulated ultrasound screen</title>
 <style>html,body{margin:0;height:100%;background:#0e1228;overflow:hidden}
-#s{width:100vw;height:100vh;object-fit:contain;display:block}
+#s{width:100vw;height:100vh;object-fit:none;object-position:center;display:block}  /* 1:1 pixels: shrinking the page costs the OCR its resolution */
+#s.fit{object-fit:contain}
 #bar{position:fixed;left:8px;bottom:8px;display:flex;gap:6px;opacity:.35}#bar:hover{opacity:1}
 #bar button{font:13px system-ui;padding:4px 10px;border-radius:6px;border:1px solid #556;background:#223;color:#dde;cursor:pointer}</style></head><body>
 <img id="s" alt="Simulated GE ultrasound measurement page">
@@ -11,4 +12,8 @@
 const q = new URLSearchParams(location.search);
 const load = u => { document.getElementById('s').src = `/api/sim_image?unit=${u}&_=${Date.now()}` };
 load(q.get('unit') || 'mm');
+// Show the page at its real size (the 940x673 GE panel sits in the middle of the image). Only when the window is too
+// small to hold the panel, shrink the whole image to fit, and say so, because the OCR will then read it worse.
+const fit = () => { const small = innerWidth < 1000 || innerHeight < 720; document.getElementById('s').classList.toggle('fit', small); document.title = 'Simulated ultrasound screen' + (small ? ' (window too small: shown shrunk)' : ''); };
+addEventListener('resize', fit); fit();
 </script></body></html>

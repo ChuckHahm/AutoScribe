@@ -87,7 +87,7 @@ def read(img):
 
 
 def _show(v):
-    return "not read" if v is None else f"{v:g}"
+    return "nothing" if v is None else f"{v:g}"
 
 
 def flag_disagreements(first, second):
@@ -99,7 +99,7 @@ def flag_disagreements(first, second):
         a, b = first["values"].get(s.key), second["values"].get(s.key)
         if a == b:
             continue
-        msg = f"second OCR engine disagrees ({_show(b)} vs {_show(a)} read first)"
+        msg = f"second OCR engine disagrees: it read {_show(b)}, the first read {_show(a)}"
         first["issues"].setdefault(s.letter, []).append({"level": "warn", "msg": msg})
         flagged.append(s.letter)
     return flagged
