@@ -6,7 +6,6 @@ percentile / GA. `photo=True` degrades the render to look like a phone photo of
 a monitor (tilt, blur, noise, glare, JPEG).
 """
 import io
-import os
 import random
 
 import numpy as np
@@ -17,17 +16,9 @@ from .schema import MEASUREMENTS
 
 
 
-def _font(regular, bold):
-    """First installed (regular, bold) pair: Linux DejaVu, then Windows Arial, then macOS Arial."""
-    for r, b in (("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-                 ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"),
-                 ("/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf")):
-        if os.path.exists(r) and os.path.exists(b):
-            return r, b
-    return regular, bold
-
-
-FONT, FONT_B = _font("DejaVuSans.ttf", "DejaVuSans-Bold.ttf")
+def _font(size):
+    """Use Pillow's embedded font so synthetic pages render identically across platforms."""
+    return ImageFont.load_default(size=size)
 W, H = 1600, 1200
 BG, PANEL, INK, DIM, BOX = (14, 18, 40), (62, 67, 80), (240, 240, 240), (200, 200, 205), (84, 90, 104)
 
@@ -73,7 +64,7 @@ def generate_record(rng, unit="mm"):
 def render(disp, rng):
     img = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(img)
-    f, fb, fs = (ImageFont.truetype(FONT, 17), ImageFont.truetype(FONT_B, 16), ImageFont.truetype(FONT, 15))
+    f, fb, fs = (_font(17), _font(16), _font(15))
     d.rectangle([310, 262, 1250, 935], fill=PANEL)
 
     def text(xy, s, font=f, fill=INK):
