@@ -1,11 +1,11 @@
 # Project tracker: dev / QA / bizdev in parallel
 
-Updated: 2026-11-17. One row per milestone; each track has its own detail files.
+Updated: 2026-11-18. One row per milestone; each track has its own detail files.
 
 | # | Milestone | Dev | QA | Bizdev | Gate to next |
 |---|-----------|-----|----|--------|--------------|
 | 0 | Scope + workflow understood | Plan, schema, synthetic data (done) | - | Oct 19 scoping (done); Oct 21 walkthrough (needs transcript); Oct 23 look-alike research plan drafted (L0 desk research not started) | Workflow confirmed with the reviewer |
-| 1 | OCR works on real photos | OCR v4 (Oct 25): flagged fields down ~85%, synthetic accuracy 93-99.6%, silent errors 0 (1 at sev 1.0 mm); first real photo 19/23 read, all correct; need more photos. Nov 16 bake-off (synthetic, n=20): rapidocr 100 / 100 / 98.9% (clean mm / clean cm / photo mm sev 0.6) vs tess v4 97.6 / 94.3 / 98.3%, silent 0 for all; rapidocr false alarms 0 / 0 / 1 vs 11 / 2 / 15. Not yet adopted; failure capture (`USREPORT_CAPTURE_FAILURES=1`) added | First entries in `qa/test-log.md` | Answer: screenshots possible? advance key? | Wrong-and-silent fields ~0 |
+| 1 | OCR works on real photos | OCR v4 (Oct 25): flagged fields down ~85%, synthetic accuracy 93-99.6%, silent errors 0 (1 at sev 1.0 mm); first real photo 19/23 read, all correct; need more photos. Nov 17-18: RapidOCR added as a second-engine cross-check (`crosscheck.py`, shipped in f346a3b); any field where Tesseract and RapidOCR disagree is flagged, values unchanged. Synthetic, embedded font, OpenCV 4.10: shipped pipeline silent 0 / 0 (clean mm / cm, n=100; Tesseract alone 1 / 1); bake-off photo mm sev 0.6 silent 3 (Tesseract) -> 0 (with cross-check); rapidocr alone 100 / 100 / 97.4%. Percentile decimal-loss fixed and flagged (`_pct`). Runtime input is screen captures, not photos. ~6-7 s per page. Failure capture (`USREPORT_CAPTURE_FAILURES=1`) added | First entries in `qa/test-log.md` | Answer: screenshots possible? advance key? | Wrong-and-silent fields ~0 |
 | 2 | Reviewer pilot (real cases, supervised) | Keystroke helper live; polish UI | Clinical checklist per case; log every correction | Agree pilot terms; HIPAA posture documented | the reviewer: net time saved, trusts flags |
 | 3 | Daily use before January (the reviewer's 3-day job starts) | Stabilize, packaging for the reviewer's Mac | Regression set from real corrections | Commercial terms decided | Stable for 2+ weeks |
 | 4 | Productize (if warranted) | More scan types, installer | Per-scan-type accuracy | Market validation, client license, equity terms | Go/no-go on product |
@@ -22,9 +22,9 @@ Updated: 2026-11-17. One row per milestone; each track has its own detail files.
 
 ## Blockers
 - Note (2026-11-17): the runtime version reads screen captures of the on-screen character strings, not phone photos. Photo-severity benchmarks are a stress test only; weight accuracy work toward clean screen captures (scaling/resolution, e.g. maximized window helps per the Nov 16 call).
-- Decide OCR engine: adopt rapidocr (alone or cross-checked with Tesseract, silent 0 in the bake-off). Synthetic pages use DejaVu, not the GE font, so re-run `tools/bakeoff.py` on real photos/failures before deciding. Owner: Chuck.
+- (decided 2026-11-17/18) RapidOCR runs as the cross-check beside Tesseract. Open: re-run `tools/bench_flags.py` and `tools/bakeoff.py --failures` on real screen captures (synthetic pages use a stand-in font, not the GE font); check whether Tesseract-alone is still needed. Owner: Chuck.
 - (cleared) Docker now works; use `sg docker -c "..."` until you re-login and restart Claude Code.
-- Need more real photos (different days/units) to measure real accuracy. Owner: reviewer.
+- Need more real screen captures of failed reads (different days/units); the runtime input is screen captures, not photos. Owner: Brian (collecting this week).
 - Oct 21 recording not transcribed. Owner: Chuck.
 - Deadline: stable build on the reviewer's Mac before the 3-day job in January; milestone 2 (supervised pilot) not yet started.
 - Open bizdev questions: screenshots possible? advance key? pilot terms, HIPAA posture.
