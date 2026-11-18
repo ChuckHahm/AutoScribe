@@ -78,10 +78,13 @@ def _day(tok):
 
 
 def _pct(raw):
-    """GE prints percentiles with 1 decimal; '316' means 31.6 (flagged)."""
-    if "." not in raw and "," not in raw and len(raw) == 3 and int(raw) > 100:
+    """GE always prints percentiles with 1 decimal ('4.2%', '31.6%'). With no decimal point in the OCR
+    text the point was lost, so '42' means 4.2 and '316' means 31.6. The result is always flagged."""
+    if "." in raw or "," in raw:
+        return _f(raw), False
+    if len(raw) >= 2:
         return int(raw) / 10, True
-    return _f(raw), False
+    return float(raw), True  # a lone digit cannot come from 'd.d'; keep it but flag it
 
 
 def _num(raw):

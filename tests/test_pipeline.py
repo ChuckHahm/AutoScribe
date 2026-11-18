@@ -68,6 +68,18 @@ def test_parse_real_photo_ocr_lines():
     assert v["tcd_d"] is None  # unreadable day is left empty, never guessed
 
 
+def test_percentile_without_decimal_is_inferred_and_flagged():
+    from usreport.extract import _pct, parse
+
+    assert _pct("4.2") == (4.2, False) and _pct("31,6") == (31.6, False)
+    assert _pct("42") == (4.2, True)  # point lost: GE prints 4.2%, never 42%
+    assert _pct("316") == (31.6, True)
+    assert _pct("1000") == (100.0, True)
+    assert _pct("5")[1] is True
+    v, _, _, notes = parse([dict(text="AC (Hadlock) 147.83 mm 143.01 147.66 42% 20w0d", conf=90, words=[])])
+    assert v["ac_pct"] == 4.2 and "ac_pct" in notes
+
+
 def test_slot_letters_match_labeled_screenshots():
     from usreport.schema import SLOT_BY_LETTER, SLOTS
     assert [s.letter for s in SLOTS] == [chr(c) for c in range(ord("A"), ord("W") + 1)]
