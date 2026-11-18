@@ -3,7 +3,7 @@ silent errors Tesseract alone made in tools/bench_flags.py. Synthetic pages only
 import pytest
 
 from usreport import crosscheck
-from usreport.extract import extract
+from usreport.extract import compare, extract
 from usreport.schema import SLOT_BY_KEY
 from usreport.synth import make_sample
 
@@ -51,14 +51,17 @@ def test_engine_crash_degrades_instead_of_failing(monkeypatch):
 
 @needs_rapidocr
 @pytest.mark.parametrize("unit,seed,key", [("mm", 20018, "efw_g"), ("cm", 20072, "ac_d")])
-def test_catches_silent_errors_tesseract_alone_makes(unit, seed, key):
-    """Tesseract alone misreads this field and flags nothing (found by tools/bench_flags.py on 2026-11-17)."""
+def test_pipeline_leaves_no_silent_error_on_pages_tesseract_alone_failed(unit, seed, key):
+    """With the Tesseract 4.1 on the dev machine these pages gave a wrong, unflagged value (tools/bench_flags.py,
+    2026-11-17). Other Tesseract versions read them differently, so the test checks the invariant, not that
+    Tesseract is wrong: after the cross-check the field is either right or flagged, and no value changes."""
     img, truth = make_sample(seed, unit, False, 0)
     letter = SLOT_BY_KEY[key].letter
     alone = extract(img, crosscheck=False)
-    assert alone["values"][key] != truth["values"][key] and letter not in alone["issues"]  # the silent error
     both = extract(img)
     assert both["crosscheck"]["status"] == "ok"
-    assert letter in both["crosscheck"]["disagree"]
-    assert any("second OCR engine" in i["msg"] for i in both["issues"][letter])
     assert both["values"] == alone["values"]  # the cross-check adds flags and never changes a value
+    right = compare(both["values"], truth["values"])[key]
+    assert right or letter in both["issues"] or letter in both["low_conf"]
+    if alone["values"][key] != truth["values"][key] and letter not in alone["issues"]:
+        assert letter in both["crosscheck"]["disagree"]  # a silent error is caught by the second engine
