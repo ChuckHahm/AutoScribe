@@ -70,7 +70,7 @@ def _startup():
     except Exception as e:
         log.error("tesseract not usable: %s", e)
     why = crosscheck.unavailable() if crosscheck.enabled() else "disabled by USREPORT_CROSSCHECK=0"
-    (log.warning if why else log.info)("OCR cross-check (RapidOCR): %s", why or "ready")
+    (log.warning if why else log.info)("OCR: RapidOCR primary reader, Tesseract check: %s", why or "ready")
     try:
         log.info("monitors: %s", capture.monitors())
     except Exception as e:

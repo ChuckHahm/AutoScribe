@@ -1,5 +1,5 @@
-"""The second-engine cross-check: it must only ADD flags, must never break extraction, and must catch the
-silent errors Tesseract alone made in tools/bench_flags.py. Synthetic pages only."""
+"""Two-engine OCR (RapidOCR reads, Tesseract checks): it must only ADD flags, never change a value, fall back to
+the working engine when one fails, and flag every disagreement. Synthetic pages only."""
 import pytest
 
 from usreport import crosscheck
@@ -30,38 +30,68 @@ def test_one_engine_not_reading_a_field_is_flagged():
     assert crosscheck.flag_disagreements(first, second) == ["I"]
 
 
-def test_off_by_env_var(monkeypatch):
+def _boom(*a):
+    raise RuntimeError("engine failed")
+
+
+def _setup(monkeypatch, rapid=None, rapid_error=False, unavailable=None):
+    """Fake engines: `rapid` is what RapidOCR reads, the tesseract callable is passed to run()."""
+    monkeypatch.setattr(crosscheck, "unavailable", lambda: unavailable)
+    monkeypatch.setattr(crosscheck, "read", _boom if rapid_error else (lambda img: rapid))
+
+
+def test_rapidocr_is_primary_and_tesseract_checks_it(monkeypatch):
+    _setup(monkeypatch, rapid=_result(efw_g=445, bpd_mm=45.0))
+    r = crosscheck.run(None, lambda img: _result(efw_g=448, bpd_mm=45.0))
+    assert r["values"]["efw_g"] == 445  # the reviewer sees RapidOCR's value, never Tesseract's
+    assert r["crosscheck"] == dict(status="ok", primary="rapidocr", disagree=["U"])
+    assert "448" in r["issues"]["U"][0]["msg"]
+
+
+def test_a_box_RapidOCR_left_empty_is_not_filled_from_tesseract(monkeypatch):
+    _setup(monkeypatch, rapid=_result(ac_d=None))
+    r = crosscheck.run(None, lambda img: _result(ac_d=6))
+    assert r["values"]["ac_d"] is None and r["crosscheck"]["disagree"] == ["I"]  # flagged, not guessed
+
+
+def test_off_by_env_var_uses_tesseract_alone(monkeypatch):
     monkeypatch.setenv("USREPORT_CROSSCHECK", "0")
-    r = crosscheck.apply(_result(efw_g=1), img=None)
-    assert r["crosscheck"]["status"] == "off" and r["issues"] == {}
+    _setup(monkeypatch, rapid_error=True)  # would fail if called
+    r = crosscheck.run(None, lambda img: _result(efw_g=1))
+    assert r["values"]["efw_g"] == 1 and r["crosscheck"]["status"] == "off" and r["issues"] == {}
 
 
-def test_missing_engine_degrades_instead_of_failing(monkeypatch):
-    monkeypatch.setattr(crosscheck, "unavailable", lambda: "RapidOCR is not installed")
-    r = crosscheck.apply(_result(efw_g=1), img=None)
-    assert r["crosscheck"]["status"] == "unavailable" and r["issues"] == {}
+def test_missing_rapidocr_falls_back_to_tesseract(monkeypatch):
+    _setup(monkeypatch, unavailable="RapidOCR is not installed")
+    r = crosscheck.run(None, lambda img: _result(efw_g=1))
+    assert r["values"]["efw_g"] == 1 and r["crosscheck"]["status"] == "unavailable" and r["issues"] == {}
 
 
-def test_engine_crash_degrades_instead_of_failing(monkeypatch):
-    monkeypatch.setattr(crosscheck, "unavailable", lambda: None)
-    monkeypatch.setattr(crosscheck, "read", lambda img: 1 / 0)
-    r = crosscheck.apply(_result(efw_g=1), img=None)
-    assert r["crosscheck"]["status"] == "error" and r["issues"] == {}
+def test_rapidocr_crash_falls_back_to_tesseract(monkeypatch):
+    _setup(monkeypatch, rapid_error=True)
+    r = crosscheck.run(None, lambda img: _result(efw_g=1))
+    assert r["values"]["efw_g"] == 1 and r["crosscheck"]["status"] == "error" and r["crosscheck"]["primary"] == "tesseract"
+
+
+def test_tesseract_crash_keeps_rapidocr_values_without_a_check(monkeypatch):
+    _setup(monkeypatch, rapid=_result(efw_g=445))
+    r = crosscheck.run(None, _boom)
+    assert r["values"]["efw_g"] == 445 and r["crosscheck"]["status"] == "error" and r["crosscheck"]["primary"] == "rapidocr"
 
 
 @needs_rapidocr
 @pytest.mark.parametrize("unit,seed,key", [("mm", 20018, "efw_g"), ("cm", 20072, "ac_d")])
-def test_pipeline_leaves_no_silent_error_on_pages_tesseract_alone_failed(unit, seed, key):
-    """With the Tesseract 4.1 on the dev machine these pages gave a wrong, unflagged value (tools/bench_flags.py,
-    2026-11-17). Other Tesseract versions read them differently, so the test checks the invariant, not that
-    Tesseract is wrong: after the cross-check the field is either right or flagged, and no value changes."""
+def test_pages_where_tesseract_alone_made_a_silent_error(unit, seed, key):
+    """Tesseract 4.1 on the dev machine read these fields wrong without a flag (tools/bench_flags.py, 2026-11-17).
+    Other Tesseract versions read them differently, so the test checks invariants, not that Tesseract is wrong."""
     img, truth = make_sample(seed, unit, False, 0)
     letter = SLOT_BY_KEY[key].letter
-    alone = extract(img, crosscheck=False)
     both = extract(img)
-    assert both["crosscheck"]["status"] == "ok"
-    assert both["values"] == alone["values"]  # the cross-check adds flags and never changes a value
+    assert both["crosscheck"]["status"] == "ok" and both["crosscheck"]["primary"] == "rapidocr"
+    assert both["values"] == crosscheck.read(img)["values"]  # the values are RapidOCR's, unchanged by the check
     right = compare(both["values"], truth["values"])[key]
-    assert right or letter in both["issues"] or letter in both["low_conf"]
-    if alone["values"][key] != truth["values"][key] and letter not in alone["issues"]:
-        assert letter in both["crosscheck"]["disagree"]  # a silent error is caught by the second engine
+    assert right or letter in both["issues"] or letter in both["low_conf"]  # right, or flagged: never silent
+    tess = extract(img, crosscheck=False)
+    assert tess["crosscheck"]["primary"] == "tesseract"
+    if tess["values"][key] != both["values"][key]:
+        assert letter in both["crosscheck"]["disagree"]  # whenever the engines differ, the reviewer is told

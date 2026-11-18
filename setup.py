@@ -91,7 +91,7 @@ def main():
     code = ("from usreport import extract, capture, synth, crosscheck; import pytesseract;"
             "print('  tesseract', pytesseract.get_tesseract_version());"
             "print('  monitors', capture.monitors());"
-            "print('  cross-check (RapidOCR):', crosscheck.unavailable() or 'ready');"
+            "print('  RapidOCR (primary reader):', crosscheck.unavailable() or 'ready');"
             "img, t = synth.make_sample(1, 'mm', False, 0); r = extract.extract(img);"
             "print('  OCR read', sum(v is not None for v in r['values'].values()), '/ 23 fields from a synthetic page')")
     run([str(py), "-c", code], check=True, env=env)

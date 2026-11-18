@@ -281,23 +281,29 @@ def finish(runs):
                 lines=[l["text"] for l in lines])
 
 
+def extract_tesseract(img: Image.Image):
+    """Tesseract alone: two modes, best-validating one wins, fields it missed filled from the other, re-validated."""
+    pre = preprocess(img)
+    return finish([_run(ocr_lines(pre, psm), psm, pre) for psm in (6, 11)])
+
+
 def extract(img: Image.Image, crosscheck=None):
     """Return {values, repeats, issues, low_conf, psm, lines, crosscheck}.
 
-    Runs two Tesseract modes, takes the best-validating one, then fills fields it missed
-    from the other. Everything is re-validated afterwards. Then a second engine (RapidOCR) reads the
-    page and any field where the engines disagree is flagged (see crosscheck.py). `crosscheck=False`
-    skips that; None follows USREPORT_CROSSCHECK (on by default).
+    RapidOCR reads the page first (it was the more accurate engine in the bake-off) and Tesseract reads it
+    again as an independent check: any field where the engines disagree is flagged (see crosscheck.py).
+    Values are always the first engine's; the check only adds flags. If RapidOCR cannot run, Tesseract
+    alone is used and `crosscheck.status` says so. `crosscheck=False` means Tesseract alone, no check;
+    None follows USREPORT_CROSSCHECK (on by default).
     """
-    pre = preprocess(img)
-    result = finish([_run(ocr_lines(pre, psm), psm, pre) for psm in (6, 11)])
     from . import crosscheck as cc
     if crosscheck is None:
         crosscheck = cc.enabled()
     if not crosscheck:
-        result["crosscheck"] = dict(status="off", disagree=[])
+        result = extract_tesseract(img)
+        result["crosscheck"] = dict(status="off", primary="tesseract", disagree=[])
         return result
-    return cc.apply(result, img)
+    return cc.run(img, extract_tesseract)
 
 
 def extract_lines(passes, pre=None):

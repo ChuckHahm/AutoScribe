@@ -72,6 +72,6 @@ def test_extract_lines_matches_extract_on_same_lines():
     from usreport.extract import extract_lines, ocr_lines, preprocess
     img, _ = make_sample(8, "cm", False, 0)
     pre = preprocess(img)
-    a = extract(img)
+    a = extract(img, crosscheck=False)  # Tesseract alone; the default extract() now reads with RapidOCR first
     b = extract_lines([ocr_lines(pre, psm) for psm in (6, 11)], pre=pre)
     assert a["values"] == b["values"] and a["issues"] == b["issues"]

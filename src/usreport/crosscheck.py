@@ -1,13 +1,13 @@
-"""Second-opinion OCR, used as a cross-check on Tesseract.
+"""Two-engine OCR: RapidOCR reads the page, Tesseract checks it.
 
-Tesseract reads the page first. RapidOCR (PaddleOCR models on ONNX runtime; the models ship inside the pip
-wheel, so it runs fully offline) reads it again, and both go through the same label-anchored parser and
-validator. Any field where the two engines read something different gets a review flag. In the bake-off this
-cut wrong-and-silent fields to 0 (see qa/accuracy-trend.md) because the engines rarely make the same mistake.
+RapidOCR (PaddleOCR models on ONNX runtime; the models ship inside the pip wheel, so it runs fully offline)
+was the more accurate engine in the bake-off (qa/accuracy-trend.md), so its values are what the reviewer sees.
+Tesseract reads the page independently, both go through the same label-anchored parser and validator, and any
+field where the two read something different gets a review flag. Two different engines rarely make the same
+mistake, which is what keeps wrong-and-silent fields near zero. This module only ADDS flags; it never changes
+a value, and never fills a box from the other engine.
 
-The first engine's values are what the reviewer sees. This module only ADDS flags; it never changes a value.
-
-    USREPORT_CROSSCHECK=0   turn it off (faster, but silent errors become possible again)
+    USREPORT_CROSSCHECK=0   Tesseract alone (faster, but silent errors become possible again)
 """
 import logging
 import os
@@ -105,24 +105,38 @@ def flag_disagreements(first, second):
     return flagged
 
 
-def apply(first, img):
-    """Cross-check `first` (a Tesseract result) against RapidOCR; sets first["crosscheck"].
+def run(img, tesseract):
+    """Read `img` with RapidOCR (the values the reviewer sees) and with Tesseract (the independent check), and
+    flag every slot where they differ. `tesseract` is a callable img -> result dict.
 
-    status: "ok" (ran; `disagree` lists flagged slot letters), "off" (disabled), or "unavailable" / "error"
-    (could not run: the page is then checked by Tesseract alone, and the UI should say so)."""
+    result["crosscheck"] = dict(status, primary, disagree):
+      status "ok"          both engines ran; `disagree` lists the flagged slot letters
+      status "off"         disabled by USREPORT_CROSSCHECK=0: Tesseract alone
+      status "unavailable" RapidOCR is missing or broke on startup: Tesseract alone
+      status "error"       one engine failed on this page: the other engine's values, no check
+    Whenever the check did not run, the UI tells the reviewer to check every value."""
     if not enabled():
-        first["crosscheck"] = dict(status="off", disagree=[])
+        first = tesseract(img)
+        first["crosscheck"] = dict(status="off", primary="tesseract", disagree=[])
         return first
     why = unavailable()
     if why:
-        log.warning("cross-check unavailable: %s", why)
-        first["crosscheck"] = dict(status="unavailable", reason=why, disagree=[])
+        log.warning("RapidOCR unavailable, using Tesseract alone: %s", why)
+        first = tesseract(img)
+        first["crosscheck"] = dict(status="unavailable", primary="tesseract", reason=why, disagree=[])
         return first
     try:
-        second = read(img)
-    except Exception as e:  # never let the second opinion break the first
-        log.error("cross-check failed: %s", type(e).__name__)
-        first["crosscheck"] = dict(status="error", reason=type(e).__name__, disagree=[])
+        first = read(img)
+    except Exception as e:  # RapidOCR failed on this page: fall back to Tesseract alone
+        log.error("RapidOCR failed: %s; using Tesseract alone", type(e).__name__)
+        first = tesseract(img)
+        first["crosscheck"] = dict(status="error", primary="tesseract", reason=type(e).__name__, disagree=[])
         return first
-    first["crosscheck"] = dict(status="ok", disagree=flag_disagreements(first, second))
+    try:
+        second = tesseract(img)
+    except Exception as e:  # never let the check break the read
+        log.error("Tesseract check failed: %s", type(e).__name__)
+        first["crosscheck"] = dict(status="error", primary="rapidocr", reason=type(e).__name__, disagree=[])
+        return first
+    first["crosscheck"] = dict(status="ok", primary="rapidocr", disagree=flag_disagreements(first, second))
     return first

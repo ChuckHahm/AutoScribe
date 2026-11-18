@@ -7,7 +7,7 @@ A local, offline ultrasound report assistant. It OCRs a GE MFM anatomy-scan meas
 
 ## Hard rules
 - **No PHI in the repo, logs, or any cloud tool.** Use synthetic data (`images/synthetic/`, `usreport.synth`) for examples and tests. `data/` and `images/` are gitignored and may hold PHI. Never print, summarize or upload real image contents or field values from them without being asked.
-- **Everything stays local.** OCR is Tesseract plus RapidOCR as a cross-check (both offline; RapidOCR's models ship in its pip wheel). The UI binds to `127.0.0.1` only. Don't add network calls, telemetry or cloud OCR.
+- **Everything stays local.** OCR is RapidOCR (primary reader) plus Tesseract (independent check); both offline, RapidOCR's models ship in its pip wheel. The UI binds to `127.0.0.1` only. Don't add network calls, telemetry or cloud OCR.
 - **The reviewer approves every value** before anything is typed. Don't add auto-submit paths.
 - **Wrong-and-silent is the metric that matters:** a wrong field that isn't flagged. Prefer flagging over guessing. Any OCR or validation change must keep silent errors at ~0.
 - Logs hold slot letters, counts and timings only, never field values.
@@ -27,11 +27,11 @@ A local, offline ultrasound report assistant. It OCRs a GE MFM anatomy-scan meas
 
 Install details are in `INSTALL.md`.
 
-Env vars: `USREPORT_CAPTURE_FAILURES=1` saves pages the reviewer corrected to `data/failures/` (PHI, off by default; see `failures.py`), `USREPORT_CROSSCHECK=0` turns the RapidOCR cross-check off (dev/speed only; silent errors become possible again), `USREPORT_DEV=0` hides `/dev`, `USREPORT_TYPING=dry`, `ADVANCE_KEY` (default `tab`; unverified, may be F2), `TESSERACT_CMD`, `DATA_DIR`, `USREPORT_BIND`.
+Env vars: `USREPORT_CAPTURE_FAILURES=1` saves pages the reviewer corrected to `data/failures/` (PHI, off by default; see `failures.py`), `USREPORT_CROSSCHECK=0` runs Tesseract alone, no second engine (dev/speed only; silent errors become possible again), `USREPORT_DEV=0` hides `/dev`, `USREPORT_TYPING=dry`, `ADVANCE_KEY` (default `tab`; unverified, may be F2), `TESSERACT_CMD`, `DATA_DIR`, `USREPORT_BIND`.
 
 ## Code map (`src/usreport/`)
 - `schema.py`: Epic slots A-W
-- `extract.py`: Tesseract OCR, then label-anchored parsing (current build: OCR v4). `crosscheck.py`: RapidOCR second read; flags every field where the engines disagree (adds flags, never changes values)
+- `extract.py`: label-anchored parsing and the Tesseract pipeline (OCR v4). `crosscheck.py`: RapidOCR reads first, Tesseract checks; flags every field where the engines disagree (adds flags, never changes values)
 - `validate.py`: range, unit, GA, EFW and repeat-average checks that produce flags
 - `hadlock.py`: formulas used to generate synthetic data and cross-check OCR
 - `synth.py`: synthetic GE-style pages and phone-photo degradation
